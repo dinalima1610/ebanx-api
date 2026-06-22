@@ -15,6 +15,7 @@ import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,50 +29,25 @@ public class AccountAssetServiceTest {
     @InjectMocks
     private AccountAssetService accountAssetService;
 
-    private final String accountOrigId = "111111111X";
-    private final String accountDestId = "3332221110";
+    private final String accountOrigId = "200";
+    private final String accountDestId = "300";
     private AccountAsset accountOrig;
     private AccountAsset accountDest;
-    private final String accountIdValido      = "987654321X";
-    private final String accountIdInvalido    = "XXX654XXX1";
-    private final String accountIdInexistente = "9876543210";
 
     @BeforeEach
     void setUp() {
         //antes de cada teste, reatribui os valores
-        accountOrig = new AccountAsset(accountOrigId, new BigDecimal("300.00"), 0);
-        accountDest = new AccountAsset(accountDestId, new BigDecimal("100.00"), 0);
-
-        //configura o comportamento estrito do validador para os cenários de id
-        Mockito.lenient().when(accountValidatorService.accountExists(accountIdValido)).thenReturn(true);
-        Mockito.lenient().when(accountValidatorService.accountExists(accountIdInvalido)).thenReturn(false);
-        Mockito.lenient().when(accountValidatorService.accountExists(accountIdInexistente)).thenReturn(false);
+        accountOrig = new AccountAsset(accountOrigId, new BigDecimal("30.00"));
+        accountDest = new AccountAsset(accountDestId, new BigDecimal("10.00"));
     }
 
     @Nested
     @DisplayName("Teste do fluxo de deposito (deposit)")
     class deposit {
-
-        @Test
-        void deveLancarExcecaoQuandoAccountIdForInvalidoPeloValidador() {
-            // Arrange
-            BigDecimal amount = new BigDecimal("100.00");
-
-            //sSimulando que o banco de dados não encontra o registro (retorna vazio) para que a execução caia no bloco do orElseThrow
-            Mockito.when(accountAssetRepository.findById(accountIdInvalido)).thenReturn(java.util.Optional.empty());
-
-            // Act & Assert
-            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-                accountAssetService.deposit(accountIdInvalido, amount);
-            });
-
-            assertEquals("Conta inválida ou inexistente", exception.getMessage());
-        }
-
         @Test
         @DisplayName("Deve lançar exceção o valor (amount) for negativo")
         void deveLancarExcecaoQuandoAmountForNegativo() {
-            BigDecimal amount = new BigDecimal("-50.00");
+            BigDecimal amount = new BigDecimal("-5.00");
 
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
                 accountAssetService.deposit(accountOrigId, amount);
@@ -94,8 +70,8 @@ public class AccountAssetServiceTest {
 
         @Test
         @DisplayName("Não deve permitir valor (amount) zero ou negativo e deve lançar exceção")
-        void naoDevePermitirDepositoComValorZeroOuNegativo() {
-            BigDecimal amount = new BigDecimal("-10.00");
+        void naoDevePermitirDepositComValorZeroOuNegativo() {
+            BigDecimal amount = new BigDecimal("-1.00");
 
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
                 accountAssetService.deposit(accountOrigId, amount);
@@ -105,30 +81,17 @@ public class AccountAssetServiceTest {
         }
 
         @Test
-        @DisplayName("Não deve permitir depósito (deposit) se a conta for inválida ou inexistente no validador")
-        void naoDevePermitirDepositSeContaForInvalidaOuInexistenteNoValidador() {
-            BigDecimal amount = new BigDecimal("10.00");
-            Mockito.when(accountAssetRepository.findById(accountIdInexistente)).thenReturn(Optional.empty());
-
-            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-                accountAssetService.deposit(accountIdInexistente, amount);
-            });
-
-            assertEquals("Conta inválida ou inexistente", exception.getMessage());
-        }
-
-        @Test
-        @DisplayName("Deve depositar (deposit) com sucesso")
-        void deveDepositarComSucesso() {
-            BigDecimal amount = new BigDecimal("50.00");
+        @DisplayName("Deve depositar (deposit) com sucesso e criar a conta dinâmicamente, caso não exista")
+        void deveFazerDepositComSucesso() {
+            BigDecimal amount = new BigDecimal("5.00");
             when(accountAssetRepository.findById((accountOrigId))).thenReturn(Optional.of(accountOrig));
             when(accountAssetRepository.save(any(AccountAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             AccountAsset accountAssetResult = accountAssetService.deposit(accountOrigId, amount);
 
             assertNotNull(accountAssetResult);
-            //300 + 50 = 350
-            assertEquals(new BigDecimal("350.00"), accountAssetResult.getAmount());
+            //30 + 5 = 35
+            assertEquals(new BigDecimal("35.00"), accountAssetResult.getAmount());
             //garante a persistência
             verify(accountAssetRepository, times(1)).save(accountOrig);
         }
@@ -138,17 +101,41 @@ public class AccountAssetServiceTest {
     @DisplayName("Teste do fluxo de saque (withdraw)")
     class withdraw {
         @Test
+        @DisplayName("Deve lançar exceção se o valor (amount) do saque (withdraw) for negativo")
+        void deveLancarExcecaoQuandoWithdrqwForNegativo() {
+            BigDecimal amount = new BigDecimal("-10.00");
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                accountAssetService.withdraw(accountOrigId, amount);
+            });
+
+            assertEquals("O valor do saque deve ser positivo", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Deve lançar exceção se o valor (amount) do saque (withdraw) for zero")
+        void deveLancarExcecaoQuandoWithdrawForZero() {
+            BigDecimal amount = BigDecimal.ZERO;
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                accountAssetService.withdraw(accountOrigId, amount);
+            });
+
+            assertEquals("O valor do saque deve ser positivo", exception.getMessage());
+        }
+
+        @Test
         @DisplayName("Deve reduzir o saldo (amount) e salvar quando houver recursos suficientes")
-        void deveSacarComSucesso() {
-            BigDecimal amount = new BigDecimal("50.00");
+        void deveFazerWithdrawComSucesso() {
+            BigDecimal amount = new BigDecimal("5.00");
             when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
             when(accountAssetRepository.save(any(AccountAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             AccountAsset accountAssetResult = accountAssetService.withdraw(accountOrigId, amount);
 
             assertNotNull(accountAssetResult);
-            //300 - 50 = 250
-            assertEquals(new BigDecimal("250.00"), accountAssetResult.getAmount());
+            //30 - 5 = 25
+            assertEquals(new BigDecimal("25.00"), accountAssetResult.getAmount());
             verify(accountAssetRepository, times(1)).save(accountOrig);
         }
 
@@ -172,9 +159,9 @@ public class AccountAssetServiceTest {
         @Test
         @DisplayName("Deve diminuir o saldo (amount) da conta (account) e persistir")
         void deveDiminuirAmountDaAccountEPersistirNoRepository() {
-            BigDecimal amountInit  = new BigDecimal("150.00");
-            BigDecimal amount      = new BigDecimal("100.00");
-            BigDecimal amountExpec = new BigDecimal("50.00");
+            BigDecimal amountInit  = new BigDecimal("15.00");
+            BigDecimal amount      = new BigDecimal("10.00");
+            BigDecimal amountExpec = new BigDecimal("5.00");
 
             //verificando a mutação de estado, instanciando um objeto de domínio real
             AccountAsset accountAsset = new AccountAsset(accountOrigId, amountInit);
@@ -196,19 +183,47 @@ public class AccountAssetServiceTest {
     @DisplayName("Teste do fluxo de transferência (transfer)")
     class transfer {
         @Test
+        @DisplayName("Deve lançar exceção se a conta (account) de origem for igual à conta (account) de destino")
+        void deveBarrarTransferParaMesmaConta() {
+            BigDecimal amount = new BigDecimal("10.00");
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                accountAssetService.transfer(accountOrigId, accountOrigId, amount);
+            });
+
+            assertEquals("A conta de origem não pode ser igual à de destino", exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("Deve lançar exceção e não alterar saldos (amount) se a origem não tiver fundos suficientes")
+        void deveBarrarTransferSeOrigemNaoTiverAmount() {
+            BigDecimal amountInvalido = new BigDecimal("500.00"); // Origem só tem 300
+            when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
+
+            assertThrows(IllegalStateException.class, () -> {
+                accountAssetService.transfer(accountOrigId, accountDestId, amountInvalido);
+            });
+
+            // Garante que o método save NUNCA foi chamado para nenhuma das contas, mantendo a consistência
+            verify(accountAssetRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("Deve debitar a account de origem, creditar a account de destino, antes de salvar ambas")
-        void deveTransferirComSucesso() {
-            BigDecimal ammount = new BigDecimal("200.00");
+        void deveFazerTransferComSucesso() {
+            BigDecimal ammount = new BigDecimal("20");
             when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
             when(accountAssetRepository.findById(accountDestId)).thenReturn(Optional.of(accountDest));
 
-            AccountAsset accountAssetResult = accountAssetService.transfer(accountOrigId, accountDestId, ammount);
+            when(accountAssetRepository.save(any(AccountAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            List<AccountAsset> accountAssetResult = accountAssetService.transfer(accountOrigId, accountDestId, ammount);
 
             assertNotNull(accountAssetResult);
-            //300 - 200 = 100
-            assertEquals(new BigDecimal("100.00"), accountAssetResult.getAmount());
-            //100 + 200 = 300
-            assertEquals(new BigDecimal("300.00"), accountDest.getAmount());
+            //30 - 20 = 10
+            assertEquals(0, new BigDecimal("10").compareTo(accountAssetResult.get(0).getAmount()));
+            //10 + 20 = 30
+            assertEquals(0, new BigDecimal("30").compareTo(accountAssetResult.get(1).getAmount()));
 
             //garante a atomicidade da transaction
             verify(accountAssetRepository, times(1)).save(accountOrig);

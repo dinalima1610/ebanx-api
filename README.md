@@ -1,139 +1,163 @@
 # API Bancária (Módulo de Depósitos, Saques e Transferências)
-> **Status:** Entrega Incremental — Etapa 1: Core de Negócios & Persistência 🚀
+> **Status:** Entrega Incremental — Pronta para Homologação com Ipkiss Tester
 
 
-Esta é a primeira entrega incremental do projeto, focada na estabilização da lógica de negócio de depósitos, tratamento de erros críticos e consistência de estado.
+Esta aplicação foi desenvolvida seguindo boas práticas de engenharia de software.
 
 ## O que foi implementado nesta etapa
-- **Separação de Responsabilidades:** Lógica de negócio isolada na camada Service, desacoplada de regras HTTP.
+- **Separação de Responsabilidades:** Lógica de negócio isolada na camada Service, desacoplada de regras de transporte HTTP.
+- **Persistência Eficiente em Memória:** Uso de estruturas thread-safe concorrentes (`ConcurrentHashMap`), eliminando a complexidade desnecessária de bancos de dados relacionais, atendendo estritamente ao critério de que durabilidade não era um requisito. 
 - **Validações de Entrada:** Bloqueio de valores negativos/zerados e verificação de contas existentes/válidas.
-- **Testes de Comportamento Real:** Testes que validam o efeito colateral no estado do domínio (`AccountAsset`) e garantem a persistência do saldo atualizado.
+- **Testes Multicamadas:** Estratégia de testes abrangente, cobrindo validações de domínio, simulação de regras de negócio e testes integrados ponta a ponta (E2E) que reproduzem o roteiro do testador.
+
 
 ## ️ Como rodar o projeto e os testes
 
 ### Pré-requisitos
 - Java 17 ou superior
 - Maven 4.x
-- **Banco de Dados:** MySQL 8.x instalado e rodando
-
-
-### Armazenamento de Dados (Persistência)
-Para esta etapa executável, a aplicação está configurada para utilizar:
-- **Banco de Dados:** MySQL 8
-- **Estratégia de Inicialização:** As tabelas e relacionamentos são gerados automaticamente pelo Hibernate (`ddl-auto=update`).
-- **Massa de Dados (Seed):** O banco é populado automaticamente com contas de teste (`987654321X` com saldo e `1234567890` zerada) na primeira inicialização da aplicação, através do script interno `data.sql`.
-
-⚠️ **Pré-requisito importante:** O Spring Boot não criará o schema automaticamente se ele não existir no seu servidor local.
-
-**Execute o script `init.sql` no seu MySQL antes de subir a aplicação** para garantir a criação correta do banco de dados `ebanx_api`.
-
+- Ngrok instalado (para exposição pública da API e homologação)
+- 
 
 ### Executar a Aplicação
 ```bash
 mvn spring-boot:run
 ```
 
-### Executar os testes unitários e de comportamento
-Para rodar a suíte de testes implementada nesta etapa, execute o comando abaixo no terminal:
+### Executar a Suíte Interna de Testes
+Para rodar a suíte completa de testes (unitários, de serviço com cenários de falha e integrados E2E), execute o comando abaixo no terminal:
 ```bash
 mvn test
 ```
 
-## Documentação da API (Contratos HTTP)
+## Próximo Passo: Homologação Externa (Ngrok & Ipkiss Tester)
 
-Todas as operações financeiras de escrita e leitura seguem um padrão de contrato uniforme e consistente. Substitua `{{baseUrl}}` pela URL correspondente ao ambiente desejado (ex: Desenvolvimento, Homologação ou Produção).
+Para disponibilizar a API na internet de forma segura e rodar a suíte automatizada de testes do EBANX Ninja, siga o passo a passo abaixo:
 
-### 1. Consulta de Saldo
-Retorna o estado atualizado de uma conta de forma puramente consultiva, sem efeitos colaterais.
+### 1. Criar Conta no Ngrok
+1. Acesse o site oficial do [ngrok](https://ngrok.com) e crie uma conta gratuita.
+2. Acesse seu painel de controle e copie o seu token de autenticação (*Authtoken*).
+3. No terminal do seu computador, configure o seu cliente ngrok com o token:
+   ```bash
+   ngrok config add-authtoken SEU_TOKEN_AQUI
+   ```
 
+### 2. Expor a API Local para a Internet
+Com o projeto Spring Boot rodando localmente (na porta padrão `8080`), abra uma nova janela de terminal e execute o túnel HTTP:
+```bash
+ngrok http 8080
+```
+O ngrok gerará um endereço público seguro e temporário (ex: `https://ngrok-free.app`). Copie essa URL.
+
+### 3. Executar os Testes no Ipkiss Tester
+1. Acesse a plataforma oficial do testador automatizado disponibilizado pelo EBANX.
+2. Cole a URL gerada pelo ngrok no campo de endereço do servidor (certifique-se de retirar barras extras ao final).
+3. Inicie o conjunto de testes automatizados para validar as respostas da API em tempo real.
+
+---
+
+## Documentação da API & Conformidade Ipkiss Tester
+
+Todos os contratos HTTP foram adaptados para responder na raiz do servidor, seguindo estritamente as assinaturas, payloads e códigos de status (`200`, `201`, `404`) exigidos pelo testador automatizado do EBANX Ninja.
+
+### 1. Reset de Estado
+Limpa integralmente o repositório em memória para execução de novas baterias de testes.
+*   **Método:** `POST`
+*   **Endpoint:** `/reset`
+*   **Resposta (`200 OK`):** `OK`
+
+### 2. Consulta de Saldo
 *   **Método:** `GET`
-*   **Endpoint:** `/api/v1/balance/{accountId}`
-*   **Exemplo de Caminho:** `/api/v1/balance/987654321X`
-*   **Resposta (`200 OK`):**
-    ```json
-    {
-      "accountId": "987654321X",
-      "amount": 250.00,
-      "version": 8
-    }
-    ```
+*   **Endpoint:** `/balance?account_id={id}`
+*   **Resposta - Conta Existente (`200 OK`):** `20` (Valor numérico bruto)
+*   **Resposta - Conta Inexistente (`404 Not Found`):** `0`
 
-### 2. Evento: Depósito
-Incrementa de forma consistente o saldo da conta informada. O valor enviado deve ser obrigatoriamente positivo.
-
+### 3. Operações Financeiras Unificadas (Eventos)
 *   **Método:** `POST`
-*   **Endpoint:** `/api/v1/event/D/{accountId}`
-*   **Exemplo de Caminho:** `/api/v1/event/D/987654321X`
+*   **Endpoint:** `/event`
+
+#### Exemplo Depósito (cria conta automaticamente caso não exista):
 *   **Corpo da Requisição (Body):**
     ```json
     {
-      "amount": 450.00
+      "type": "deposit",
+      "destination": "100",
+      "amount": 10
     }
     ```
-*   **Resposta (`200 OK`):**
+*   **Resposta (`201 Created`):**
     ```json
     {
-      "accountId": "987654321X",
-      "amount": 200.00,
-      "version": 1
+      "destination": {
+        "id": "100",
+        "balance": 10
+      }
     }
     ```
 
-### 3. Evento: Saque
-Deduz o valor do saldo da conta informada, respeitando a validação de fundos/saldo insuficiente.
-
-*   **Método:** `POST`
-*   **Endpoint:** `/api/v1/event/W/{accountId}`
-*   **Exemplo de Caminho:** `/api/v1/event/W/987654321X`
+#### Exemplo Saque (valida saldo insuficiente):
 *   **Corpo da Requisição (Body):**
     ```json
     {
-      "amount": 200.00
+      "type": "withdraw",
+      "origin": "100",
+      "amount": 5
     }
     ```
-*   **Resposta (`200 OK`):**
+*   **Resposta (`201 Created`):**
     ```json
     {
-      "accountId": "987654321X",
-      "amount": 100.00,
-      "version": 3
+      "origin": {
+        "id": "100",
+        "balance": 5
+      }
     }
     ```
 
-### 4. Evento: Transferência
-Realiza a movimentação financeira debitando da conta de origem (passada no caminho) e creditando na conta de destino (passada no corpo). Operação executada de forma atômica.
-
-*   **Método:** `POST`
-*   **Endpoint:** `/api/v1/event/T/{accountId}`
-*   **Exemplo de Caminho:** `/api/v1/event/T/987654321X`
+#### Exemplo Transferência (executada de forma atômica):
 *   **Corpo da Requisição (Body):**
     ```json
     {
-      "accountDestId": "1234567890",
-      "amount": 200.00
+      "type": "transfer",
+      "origin": "100",
+      "amount": 15,
+      "destination": "300"
     }
     ```
-*   **Resposta (`200 OK`):**
+*   **Resposta (`201 Created`):**
     ```json
     {
-      "accountId": "987654321X",
-      "amount": 0.00,
-      "version": 2
+      "origin": {
+        "id": "100",
+        "balance": 0
+      },
+      "destination": {
+        "id": "300",
+        "balance": 15
+      }
     }
     ```
 
-## Principais Decisões Técnicas
-1. **Tipos e Valores:** Uso exclusivo de `BigDecimal` para todas as operações financeiras, evitando problemas de precisão de ponto flutuante (`double`/`float`).
-2. **Abordagem de Testes:** Optou-se por testes unitários focados no comportamento do domínio. Os mocks foram utilizados estritamente para simular a infraestrutura (banco de dados/validadores externos), enquanto a mutação do saldo e as regras de negócio foram validadas em instâncias reais de objetos para evitar falsos-positivos.
-3. **Imutabilidade e Estado:** Retornos HTTP padronizados contendo a versão do registro (`version`), estruturando o terreno para concorrência e consistência de estado.
+---
+
+## Principais Decisões Técnicas e de Arquitetura & Design de Rotas
+1. **Tipos e Valores:** Uso exclusivo de `BigDecimal` para todas as operações financeiras em toda a cadeia de dados (Service, Controller e DTO), mitigando problemas clássicos de imprecisão de ponto flutuante (`double`/`float`).
+2. **Design de Rotas na Raiz:** Em cenários corporativos reais, os endpoints seriam obrigatoriamente isolados sob contextos de negócio e versionados (ex: `/api/v1/balance`). Para este desafio, optou-se por expor os recursos `/event`, `/balance` e `/reset` diretamente na raiz do servidor estritamente para garantir compatibilidade com as regras de parsing e concatenação rígidas do script automatizado do `Ipkiss Tester`.
+3. **Flexibilidade do Contrato:** O desacoplamento total entre a lógica de domínio (`AccountAssetService`) e os controladores de transporte HTTP garante que, caso uma nova versão da API necessite de padrões corporativos como `/v2/`, a refatoração envolverá apenas anotações de rota, sem qualquer impacto nas regras financeiras de estado.
+4. **Armazenamento de Dados:** Substituição de infraestruturas relacionais pesadas por uma estratégia baseada em `ConcurrentHashMap`. Isso garante consistência estrita de estado , já que persistência durável não era um requisito.
+5. **Abordagem Abrangente de Testes:** A aplicação conta com três níveis distintos de testes:
+    - **Testes de Domínio:** Focados em validar o isolamento e corretude do estado das entidades.
+    - **Testes de Serviço (Edge Cases):** Mockados com o Mockito para forçar e tratar cenários excepcionais como saques e transferências com saldo insuficiente ou transferências para uma mesma conta.
+    - **Testes Integrados E2E:** Usando `MockMvc` com persistência em memória viva para reproduzir integralmente e sequencialmente as etapas estipuladas na especificação do Ipkiss Tester.
 
 
 ## Status do Projeto e Próximos Passos (Roadmap)
 
 Este repositório segue uma estratégia de desenvolvimento incremental (boas práticas de engenharia de software).
 
-- **[X] Etapa 1 (Atual):** Estabilização do core de negócios (módulo de Consulta de Saldo, Depósitos, Saques, Transferências em `AccountAssetService`), persistência em banco de dados MySQL 8 com população automatizada via `data.sql` e testes unitários de comportamento real.
-- **[ ] Etapa 2 (Próxima):** Refatoração dos contratos da camada HTTP (`AccountAssetController`) para alinhamento estrito com a especificação de testes automatizados da plataforma (rotas `/event`, `/balance` e `/reset`), inclusão dos fluxos de saque/transferência e exposição via túnel HTTP (ngrok).
+- **[X] Etapa 1:** Estabilização do core de negócios (módulo de Consulta de Saldo, Depósitos, Saques, Transferências em `AccountAssetService`), persistência em banco de dados MySQL 8 com população automatizada via `data.sql` e testes unitários de comportamento real.
+- **[X] Etapa 2 (Atual):** Refatoração dos contratos da camada HTTP para alinhamento estrito com a especificação de testes da plataforma (rotas `/event`, `/balance` e `/reset`) e remoção de persistência pesada. Blindagem do projeto com testes de integração *Edge Cases* e estruturação de testes End-to-End (E2E) locais usando MockMvc.
+- **[ ] Etapa 3 (Próxima Versão):** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok.
 
 
 ---

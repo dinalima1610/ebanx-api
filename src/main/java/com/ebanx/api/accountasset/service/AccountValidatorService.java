@@ -9,7 +9,7 @@ public class AccountValidatorService {
             return false;
         }
 
-        //garante que a conta tenha entre 1 e 10 caracteres e termina com números ou "X"/"x" (Banco do Brasil tem contas terminas em X)
-        return accountId.matches("^[0-9A-Xa-x]{1,10}$");
+         //trava o tamanho de 1 a 10 dígitos numéricos puros, mantendo o código flexível
+        return accountId.matches("^[0-9]{1,10}$");
     }
 }
