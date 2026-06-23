@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Testes Unitários de Domínio para a entidade AccountAsset.
+ * Valida de forma isolada e veloz a consistência das propriedades básicas do modelo,
+ * a integridade dos seus construtores e o comportamento esperado de mutação de estado via métodos getters e setters.
+ */
 public class AccountAssetTest {
     @Test
     @DisplayName("Deve instanciar um AccountAsset com os valores (accountId e amount) corretos através do construtor")
@@ -20,7 +25,6 @@ public class AccountAssetTest {
         assertNotNull(asset);
         assertEquals(idExpec, asset.getAccountId());
         assertEquals(amountExpec, asset.getAmount());
-        //versão inicial deve ser zero
         assertEquals(amountExpec, asset.getAmount());
     }
 

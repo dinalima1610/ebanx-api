@@ -142,7 +142,7 @@ Limpa integralmente o repositório em memória para execução de novas baterias
 
 ## Principais Decisões Técnicas e de Arquitetura & Design de Rotas
 1. **Tipos e Valores:** Uso exclusivo de `BigDecimal` para todas as operações financeiras em toda a cadeia de dados (Service, Controller e DTO), mitigando problemas clássicos de imprecisão de ponto flutuante (`double`/`float`).
-2. **Design de Rotas na Raiz:** Em cenários corporativos reais, os endpoints seriam obrigatoriamente isolados sob contextos de negócio e versionados (ex: `/api/v1/balance`). Para este desafio, optou-se por expor os recursos `/event`, `/balance` e `/reset` diretamente na raiz do servidor estritamente para garantir compatibilidade com as regras de parsing e concatenação rígidas do script automatizado do `Ipkiss Tester`.
+2. **Design de Rotas na Raiz:** Em cenários corporativos reais, os endpoints seriam obrigatoriamente isolados sob contextos de negócio e versionados (ex: `/api/v1/balance`). Optou-se por expor os recursos `/event`, `/balance` e `/reset` diretamente na raiz do servidor estritamente para garantir compatibilidade com as regras de parsing e concatenação rígidas do script automatizado do `Ipkiss Tester`.
 3. **Flexibilidade do Contrato:** O desacoplamento total entre a lógica de domínio (`AccountAssetService`) e os controladores de transporte HTTP garante que, caso uma nova versão da API necessite de padrões corporativos como `/v2/`, a refatoração envolverá apenas anotações de rota, sem qualquer impacto nas regras financeiras de estado.
 4. **Armazenamento de Dados:** Substituição de infraestruturas relacionais pesadas por uma estratégia baseada em `ConcurrentHashMap`. Isso garante consistência estrita de estado , já que persistência durável não era um requisito.
 5. **Abordagem Abrangente de Testes:** A aplicação conta com três níveis distintos de testes:
@@ -156,9 +156,8 @@ Limpa integralmente o repositório em memória para execução de novas baterias
 Este repositório segue uma estratégia de desenvolvimento incremental (boas práticas de engenharia de software).
 
 - **[X] Etapa 1:** Estabilização do core de negócios (módulo de Consulta de Saldo, Depósitos, Saques, Transferências em `AccountAssetService`), persistência em banco de dados MySQL 8 com população automatizada via `data.sql` e testes unitários de comportamento real.
-- **[X] Etapa 2 (Atual):** Refatoração dos contratos da camada HTTP para alinhamento estrito com a especificação de testes da plataforma (rotas `/event`, `/balance` e `/reset`) e remoção de persistência pesada. Blindagem do projeto com testes de integração *Edge Cases* e estruturação de testes End-to-End (E2E) locais usando MockMvc.
-- **[ ] Etapa 3 (Próxima Versão):** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok.
-
+- **[X] Etapa 2:** Refatoração dos contratos da camada HTTP para alinhamento estrito com a especificação de testes da plataforma (rotas `/event`, `/balance` e `/reset`) e remoção de persistência pesada. Blindagem do projeto com testes de integração *Edge Cases* e estruturação de testes End-to-End (E2E) locais usando MockMvc.
+- **[X] Etapa 3 (Atual):** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok com 100% de sucesso na plataforma Ipkiss Tester via Ngrok. Criação da documentação formal de arquitetura (`ARCHITECTURE.md`) detalhando as decisões de design, padrões de concorrência e o System Design Document (SDD).
 
 ---
 

@@ -12,6 +12,11 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.Map;
 
+/**
+ * Controlador REST responsável por expor as portas de entrada HTTP da API na raiz do servidor.
+ * Atua estritamente no recebimento de requisições, delegação de fluxos para a camada de serviço,
+ * formatação de respostas JSON e códigos de status em conformidade com o Ipkiss Tester.
+ */
 @RestController
 public class AccountAssetController {
     @Autowired
@@ -70,7 +75,8 @@ public class AccountAssetController {
             }
 
             return ResponseEntity.badRequest().build();
-        } catch (IllegalArgumentException e) {
+        }
+        catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(0);
         }
     }

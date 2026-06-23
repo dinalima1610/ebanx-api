@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Classe de domínio que representa o estado financeiro de uma conta.
+ * Classe de domínio que representa o estado financeiro de uma conta (account).
  * Gerenciada em memória de forma simplificada atendendo aos critérios da especificação.
  */
 @Data

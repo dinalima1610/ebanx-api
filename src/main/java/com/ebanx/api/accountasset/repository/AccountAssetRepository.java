@@ -3,10 +3,14 @@ package com.ebanx.api.accountasset.repository;
 import com.ebanx.api.accountasset.domain.AccountAsset;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Repositório em memória para o armazenamento e gerenciamento de ativos de contas.
+ * Utiliza estruturas thread-safe para garantir a consistência de estado sob alta concorrência,
+ * eliminando dependências relacionais seguindo o princípio YAGNI (You Ain't Gonna Need It).
+ */
 @Repository
 public class AccountAssetRepository {
     private final ConcurrentHashMap<String, AccountAsset> storeConcurrentHashMap = new ConcurrentHashMap<>();
@@ -26,12 +30,5 @@ public class AccountAssetRepository {
 
     public void deleteAll() {
         storeConcurrentHashMap.clear();
-    }
-
-    //para eventuais testes
-    @jakarta.annotation.PostConstruct
-    public void initData() {
-        this.save(new AccountAsset("987654321X", new BigDecimal("250.00")));
-        this.save(new AccountAsset("1234567890", BigDecimal.ZERO));
     }
 }

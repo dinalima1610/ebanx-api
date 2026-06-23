@@ -1,14 +1,18 @@
 package com.ebanx.api.accountasset.controller.dto;
 
 import java.math.BigDecimal;
+/**
+ * Objeto responsável pela transferência de dados (DTO) imutável que representa o payload recebido nas operações financeiras.
+ * Centraliza o mapeamento sintático das requisições unificadas de eventos da API bancária.
+ */
 public record AccountAssetRecord (
         //"deposit", "withdraw" ou "transfer"
         String type,
-        //id da conta de origem
+        //id account (conta) de origem
         String origin,
-        //id da conta de destino
+        //id account (conta) de destino
         String destination,
-        //valor da operação
+        //amount (valor) da operação
         BigDecimal amount
 ) {
 }

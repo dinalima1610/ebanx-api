@@ -1,6 +1,11 @@
 package com.ebanx.api.accountasset.service;
 
 import org.springframework.stereotype.Component;
+
+/**
+ * Componente utilitário responsável pela validação sintática e de integridade dos identificadores de contas.
+ * Oferece mecanismos isolados e centralizados para checagem de formatos, garantindo o domínio.
+ */
 @Component
 public class AccountValidatorService {
 

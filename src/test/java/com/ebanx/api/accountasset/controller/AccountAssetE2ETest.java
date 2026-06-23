@@ -1,7 +1,5 @@
 package com.ebanx.api.accountasset.controller;
 
-import com.ebanx.api.accountasset.repository.AccountAssetRepository;
-
 import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -15,6 +13,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
+/**
+ * Testes Integrados End-to-End (ponta a ponta) para a camada de controladores HTTP.
+ * Utiliza o componente MockMvc como simulador da camada de transporte web (sem abrir portas TCP reais de rede
+ * que podem falhar em servidores de Integração Contínua (CI/CD) se a porta já estiver ocupada por outro processo)
+ * integrado ao repositório real em memória. Reproduz com fidelidade e de forma estritamente sequencial
+ * o roteiro de etapas exigido pelo Ipkiss Tester para homologar o contrato de endpoints da API.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -22,9 +27,6 @@ public class AccountAssetE2ETest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private AccountAssetRepository accountAssetRepository;
 
     @Test
     @DisplayName("Deve fazer reset de todos os valores antes de iniciar os testes")

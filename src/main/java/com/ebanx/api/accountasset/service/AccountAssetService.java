@@ -6,6 +6,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Classe de serviço responsável por centralizar as regras de negócio financeiras.
+ * Concentra os fluxos lógicos e matemáticos de depósitos (deposit), saques (withdraw) e transferências (transfer),
+ * mantendo-se totalmente desacoplada e isolada de protocolos de transporte HTTP.
+ */
 @Service
 public class AccountAssetService {
 
@@ -19,60 +24,60 @@ public class AccountAssetService {
 
     public AccountAsset getBalance(String accountId) {
         return accountAssetRepository.findById(accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Conta não encontrada ou sem saldo inicial"));
+                .orElseThrow(() -> new IllegalArgumentException(AccountMessages.CONTA_NAO_ENCONTRADA_OU_SEM_SALDO_INICIAL));
     }
 
     public AccountAsset deposit(String accountId, BigDecimal amount) {
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("O valor do depósito deve ser positivo");
+            throw new IllegalArgumentException(AccountMessages.VALOR_DEPOSITO_POSITIVO);
         }
 
-        //se não achar conta, instancia uma nova
+        //se não achar account (conta), instancia uma nova
         AccountAsset accountAsset = accountAssetRepository.findById(accountId)
                 .orElseGet(() -> new AccountAsset(accountId, BigDecimal.ZERO));
 
-        //adiciona o saldo
+        //adiciona ammount (saldo)
         accountAsset.setAmount(accountAsset.getAmount().add(amount));
 
         return accountAssetRepository.save(accountAsset);
     }
 
     public AccountAsset withdraw(String accountId, BigDecimal amount) {
-        //lança erro se o saldo for insuficiente
+        //lança erro se amount (saldo) for insuficiente
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("O valor do saque deve ser positivo");
+            throw new IllegalArgumentException(AccountMessages.VALOR_SAQUE_POSITIVO);
         }
 
-        //idem se não existir a conta ou for inválida
+        //idem se não existir account (conta) ou for inválida
         AccountAsset accountAsset = accountAssetRepository.findById(accountId)
                 .orElseThrow(() -> {
                     if (!accountValidator.accountExists(accountId)) {
-                        return new IllegalArgumentException("Conta de origem inválida ou inexistente");
+                        return new IllegalArgumentException(AccountMessages.CONTA_ORIGEM_INVALIDA);
                     }
-                    return new IllegalArgumentException("Conta não encontrada");
+                    return new IllegalArgumentException(AccountMessages.CONTA_NAO_ENCONTRADA);
                 });
 
-        //impede saldo menor que zero
+        //impede amount (saldo) menor que zero
         if (accountAsset.getAmount().subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalStateException("Saldo insuficiente");
+            throw new IllegalStateException(AccountMessages.SALDO_INSUFICIENTE);
         }
 
-        //subtrai o saldo
+        //subtrai amount (saldo)
         accountAsset.setAmount(accountAsset.getAmount().subtract(amount));
 
         return accountAssetRepository.save(accountAsset);
     }
 
     public List<AccountAsset> transfer(String origId, String destId, BigDecimal amount) {
-        //a conta origem e destino devem ser diferenes
+        //account (conta) origem e destino devem ser diferenes
         if (origId.equals(destId)) {
-            throw new IllegalArgumentException("A conta de origem não pode ser igual à de destino");
+            throw new IllegalArgumentException(AccountMessages.ORIGEM_IGUAL_DESTINO);
         }
 
-        //o método withdraw valida saldo insuficiente e valor positivo para a origem
+        //o método withdraw valida amount (saldo) insuficiente e valor positivo para a origem
         AccountAsset origAccount = this.withdraw(origId, amount);
 
-        //o método deposit trata a criação dinâmica da conta de destino caso ela não exista
+        //o método deposit trata a criação dinâmica da account (conta) de destino caso ela não exista
         AccountAsset destAccount = this.deposit(destId, amount);
 
         return List.of(origAccount, destAccount);
