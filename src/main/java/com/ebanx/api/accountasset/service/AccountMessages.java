@@ -12,11 +12,12 @@ public final class AccountMessages {
 
     public static final String VALOR_DEPOSITO_POSITIVO = "O valor do depósito deve ser positivo";
     public static final String VALOR_SAQUE_POSITIVO    = "O valor do saque deve ser positivo";
-    public static final String SALDO_INSUFICIENTE      = "Saldo insuficiente";
     public static final String CONTA_NAO_ENCONTRADA    = "Conta não encontrada";
+    public static final String CONTA_INVALIDA          = "Conta inválida";
     public static final String ORIGEM_IGUAL_DESTINO    = "A conta de origem não pode ser igual à de destino";
-    public static final String CONTA_ORIGEM_INVALIDA   = "Conta de origem inválida ou inexistente";
     public static final String CONTA_NAO_ENCONTRADA_OU_SEM_SALDO_INICIAL = "Conta não encontrada ou sem saldo inicial";
+    public static final String SALDO_INSUFICIENTE      = "Saldo insuficiente";
+    public static final String SALDO_FINAL_APOS_SAQUE  = "O saldo final da conta deve ser o valor exato do saldo inicial subtraído do saque";
 }
 
 

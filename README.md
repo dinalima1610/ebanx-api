@@ -6,33 +6,42 @@ Esta aplicação foi desenvolvida seguindo boas práticas de engenharia de softw
 
 ## O que foi implementado nesta etapa
 - **Separação de Responsabilidades:** Lógica de negócio isolada na camada Service, desacoplada de regras de transporte HTTP.
-- **Persistência Eficiente em Memória:** Uso de estruturas thread-safe concorrentes (`ConcurrentHashMap`), eliminando a complexidade desnecessária de bancos de dados relacionais, atendendo estritamente ao critério de que durabilidade não era um requisito. 
-- **Validações de Entrada:** Bloqueio de valores negativos/zerados e verificação de contas existentes/válidas.
-- **Testes Multicamadas:** Estratégia de testes abrangente, cobrindo validações de domínio, simulação de regras de negócio e testes integrados ponta a ponta (E2E) que reproduzem o roteiro do testador.
+- **Persistência Eficiente em Memória:** Uso de estruturas thread-safe concorrentes (`ConcurrentHashMap`), eliminando a complexidade desnecessária de bancos de dados relacionais, atendendo estritamente ao critério de que durabilidade não era um requisito.
+- **Validações de Entrada:** IDs de conta são validados no `AccountValidatorService`; regras financeiras como valores positivos e saldo suficiente ficam no `AccountAssetService`; o controller traduz exceções para respostas HTTP.
+- **Testes Multicamadas:** Estratégia de testes abrangente, cobrindo validações de domínio, simulação de regras de negócio e testes integrados ponta a ponta (E2E) que reproduzem o roteiro do testador e cobrem cenários adicionais de robustez.
 
 
 ## ️ Como rodar o projeto e os testes
 
 ### Pré-requisitos
 - Java 17 ou superior
-- Maven 4.x
+- Maven Wrapper do projeto (`mvnw`/`mvnw.cmd`) ou Maven 3.9+ compatível
 - Ngrok instalado (para exposição pública da API e homologação)
-- 
 
 ### Executar a Aplicação
 ```bash
-mvn spring-boot:run
+./mvnw spring-boot:run
+```
+
+No Windows:
+```powershell
+.\mvnw.cmd spring-boot:run
 ```
 
 ### Executar a Suíte Interna de Testes
 Para rodar a suíte completa de testes (unitários, de serviço com cenários de falha e integrados E2E), execute o comando abaixo no terminal:
 ```bash
-mvn test
+./mvnw test
+```
+
+No Windows:
+```powershell
+.\mvnw.cmd test
 ```
 
 ## Próximo Passo: Homologação Externa (Ngrok & Ipkiss Tester)
 
-Para disponibilizar a API na internet de forma segura e rodar a suíte automatizada de testes do EBANX Ninja, siga o passo a passo abaixo:
+Para disponibilizar a API na internet de forma segura e rodar a suíte automatizada de testes do EBANX Ninja (https://ipkiss.ebanx.ninja), siga o passo a passo abaixo:
 
 ### 1. Criar Conta no Ngrok
 1. Acesse o site oficial do [ngrok](https://ngrok.com) e crie uma conta gratuita.
@@ -95,7 +104,7 @@ Limpa integralmente o repositório em memória para execução de novas baterias
     }
     ```
 
-#### Exemplo Saque (valida saldo insuficiente):
+#### Exemplo Saque com sucesso:
 *   **Corpo da Requisição (Body):**
     ```json
     {
@@ -104,6 +113,7 @@ Limpa integralmente o repositório em memória para execução de novas baterias
       "amount": 5
     }
     ```
+
 *   **Resposta (`201 Created`):**
     ```json
     {
@@ -113,6 +123,18 @@ Limpa integralmente o repositório em memória para execução de novas baterias
       }
     }
     ```
+
+#### Exemplo Saque com saldo insuficiente:
+Considerando uma conta existente com saldo menor que o valor solicitado, a API retorna o mesmo contrato de erro usado para operações financeiras não atendidas.
+*   **Corpo da Requisição (Body):**
+    ```json
+    {
+      "type": "withdraw",
+      "origin": "100",
+      "amount": 999
+    }
+    ```
+*   **Resposta (`404 Not Found`):** `0`
 
 #### Exemplo Transferência (executada de forma atômica):
 *   **Corpo da Requisição (Body):**
@@ -144,11 +166,11 @@ Limpa integralmente o repositório em memória para execução de novas baterias
 1. **Tipos e Valores:** Uso exclusivo de `BigDecimal` para todas as operações financeiras em toda a cadeia de dados (Service, Controller e DTO), mitigando problemas clássicos de imprecisão de ponto flutuante (`double`/`float`).
 2. **Design de Rotas na Raiz:** Em cenários corporativos reais, os endpoints seriam obrigatoriamente isolados sob contextos de negócio e versionados (ex: `/api/v1/balance`). Optou-se por expor os recursos `/event`, `/balance` e `/reset` diretamente na raiz do servidor estritamente para garantir compatibilidade com as regras de parsing e concatenação rígidas do script automatizado do `Ipkiss Tester`.
 3. **Flexibilidade do Contrato:** O desacoplamento total entre a lógica de domínio (`AccountAssetService`) e os controladores de transporte HTTP garante que, caso uma nova versão da API necessite de padrões corporativos como `/v2/`, a refatoração envolverá apenas anotações de rota, sem qualquer impacto nas regras financeiras de estado.
-4. **Armazenamento de Dados:** Substituição de infraestruturas relacionais pesadas por uma estratégia baseada em `ConcurrentHashMap`. Isso garante consistência estrita de estado , já que persistência durável não era um requisito.
+4. **Armazenamento de Dados:** Substituição de infraestruturas relacionais pesadas por uma estratégia baseada em `ConcurrentHashMap`. Isso garante consistência estrita de estado, já que persistência durável não era um requisito.
 5. **Abordagem Abrangente de Testes:** A aplicação conta com três níveis distintos de testes:
     - **Testes de Domínio:** Focados em validar o isolamento e corretude do estado das entidades.
     - **Testes de Serviço (Edge Cases):** Mockados com o Mockito para forçar e tratar cenários excepcionais como saques e transferências com saldo insuficiente ou transferências para uma mesma conta.
-    - **Testes Integrados E2E:** Usando `MockMvc` com persistência em memória viva para reproduzir integralmente e sequencialmente as etapas estipuladas na especificação do Ipkiss Tester.
+    - **Testes Integrados E2E:** Usando `MockMvc` com persistência em memória para reproduzir integralmente e sequencialmente as etapas estipuladas na especificação do `Ipkiss Tester`, além de cobrir cenários adicionais de robustez como saldo insuficiente e campos ausentes.
 
 
 ## Status do Projeto e Próximos Passos (Roadmap)
@@ -157,7 +179,7 @@ Este repositório segue uma estratégia de desenvolvimento incremental (boas pr�
 
 - **[X] Etapa 1:** Estabilização do core de negócios (módulo de Consulta de Saldo, Depósitos, Saques, Transferências em `AccountAssetService`), persistência em banco de dados MySQL 8 com população automatizada via `data.sql` e testes unitários de comportamento real.
 - **[X] Etapa 2:** Refatoração dos contratos da camada HTTP para alinhamento estrito com a especificação de testes da plataforma (rotas `/event`, `/balance` e `/reset`) e remoção de persistência pesada. Blindagem do projeto com testes de integração *Edge Cases* e estruturação de testes End-to-End (E2E) locais usando MockMvc.
-- **[X] Etapa 3 (Atual):** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok com 100% de sucesso na plataforma Ipkiss Tester via Ngrok. Criação da documentação formal de arquitetura (`ARCHITECTURE.md`) detalhando as decisões de design, padrões de concorrência e o System Design Document (SDD).
+- **[X] Etapa 3 (Atual):** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok com 100% de sucesso na plataforma `Ipkiss Tester` via Ngrok. Criação da documentação formal de arquitetura (`ARCHITECTURE.md`) detalhando as decisões de design, padrões de concorrência e o System Design Document (SDD).
 
 ---
 

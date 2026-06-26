@@ -28,7 +28,11 @@ public class AccountAssetService {
     }
 
     public AccountAsset deposit(String accountId, BigDecimal amount) {
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+        if (!accountValidator.isValidAccountId(accountId)) {
+            throw new IllegalArgumentException(AccountMessages.CONTA_INVALIDA);
+        }
+
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException(AccountMessages.VALOR_DEPOSITO_POSITIVO);
         }
 
@@ -43,21 +47,21 @@ public class AccountAssetService {
     }
 
     public AccountAsset withdraw(String accountId, BigDecimal amount) {
-        //lança erro se amount (saldo) for insuficiente
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+        //verifica se é conta (account) válida
+        if (!accountValidator.isValidAccountId(accountId)) {
+            throw new IllegalArgumentException(AccountMessages.CONTA_INVALIDA);
+        }
+
+        //verifica se o valor (amount) do saque foi informado e é positivo
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException(AccountMessages.VALOR_SAQUE_POSITIVO);
         }
 
-        //idem se não existir account (conta) ou for inválida
+        //lança erro se a account (conta) não existir no repositório
         AccountAsset accountAsset = accountAssetRepository.findById(accountId)
-                .orElseThrow(() -> {
-                    if (!accountValidator.accountExists(accountId)) {
-                        return new IllegalArgumentException(AccountMessages.CONTA_ORIGEM_INVALIDA);
-                    }
-                    return new IllegalArgumentException(AccountMessages.CONTA_NAO_ENCONTRADA);
-                });
+                .orElseThrow(() -> new IllegalArgumentException(AccountMessages.CONTA_NAO_ENCONTRADA));
 
-        //impede amount (saldo) menor que zero
+        //impede que o saque (withdraw) maior que saldo (amount)
         if (accountAsset.getAmount().subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalStateException(AccountMessages.SALDO_INSUFICIENTE);
         }
@@ -69,6 +73,11 @@ public class AccountAssetService {
     }
 
     public List<AccountAsset> transfer(String origId, String destId, BigDecimal amount) {
+        //valida os ids antes de qualquer mutação para evitar débito parcial na transferência
+        if (!accountValidator.isValidAccountId(origId) || !accountValidator.isValidAccountId(destId)) {
+            throw new IllegalArgumentException(AccountMessages.CONTA_NAO_ENCONTRADA);
+        }
+
         //account (conta) origem e destino devem ser diferenes
         if (origId.equals(destId)) {
             throw new IllegalArgumentException(AccountMessages.ORIGEM_IGUAL_DESTINO);

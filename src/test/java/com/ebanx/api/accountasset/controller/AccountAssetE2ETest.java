@@ -16,9 +16,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Testes Integrados End-to-End (ponta a ponta) para a camada de controladores HTTP.
  * Utiliza o componente MockMvc como simulador da camada de transporte web (sem abrir portas TCP reais de rede
- * que podem falhar em servidores de Integração Contínua (CI/CD) se a porta já estiver ocupada por outro processo)
- * integrado ao repositório real em memória. Reproduz com fidelidade e de forma estritamente sequencial
- * o roteiro de etapas exigido pelo Ipkiss Tester para homologar o contrato de endpoints da API.
+ * que podem falhar em servidores de Integração Contínua, CI/CD, se a porta já estiver ocupada por outro processo)
+ * integrado ao repositório real em memória. Reproduz o roteiro de etapas exigido pelo Ipkiss Tester
+ * e cobre cenários adicionais de robustez do contrato HTTP.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -149,6 +149,67 @@ public class AccountAssetE2ETest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isNotFound())
+                .andExpect(content().string("0"));
+    }
+
+    @Test
+    @DisplayName("Fazer transferencia (transfer) com saldo insuficiente deve retornar 404")
+    @Order(11)
+    void fazerTransferComSaldoInsuficiente() throws Exception {
+        String payload = "{\"type\":\"transfer\", \"origin\":\"100\", \"amount\":15, \"destination\":\"400\"}";
+
+        mockMvc.perform(post("/event")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("0"));
+    }
+
+    @Test
+    @DisplayName("Fazer saque (withdraw) com saldo insuficiente deve retornar 404")
+    @Order(12)
+    void fazerWithdrawComSaldoInsuficiente() throws Exception {
+        String payload = "{\"type\":\"withdraw\", \"origin\":\"300\", \"amount\":20}";
+
+        mockMvc.perform(post("/event")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("0"));
+    }
+
+    @Test
+    @DisplayName("Fazer depósito (deposit) sem valor (amount) informado deve retornar 404")
+    @Order(13)
+    void fazerDepositSemAmount() throws Exception {
+        String payload = "{\"type\":\"deposit\", \"destination\":\"500\"}";
+
+        mockMvc.perform(post("/event")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("0"));
+    }
+
+    @Test
+    @DisplayName("Fazer transferência (transfer) sem destino deve retornar 404")
+    @Order(14)
+    void fazerTransferSemDestino() throws Exception {
+        String payload = "{\"type\":\"transfer\", \"origin\":\"300\", \"amount\":5}";
+
+        mockMvc.perform(post("/event")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("0"));
+    }
+
+    @Test
+    @DisplayName("Obter saldo (balance) para conta (account) existente com saldo zero deve retornar 200")
+    @Order(15)
+    void deveObterBalanceParaAccountExistenteComSaldoZero() throws Exception {
+        mockMvc.perform(get("/balance").param("account_id", "100"))
+                .andExpect(status().isOk())
                 .andExpect(content().string("0"));
     }
 }

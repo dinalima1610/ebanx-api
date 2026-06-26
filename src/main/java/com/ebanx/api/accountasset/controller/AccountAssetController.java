@@ -14,8 +14,8 @@ import java.util.Map;
 
 /**
  * Controlador REST responsável por expor as portas de entrada HTTP da API na raiz do servidor.
- * Atua estritamente no recebimento de requisições, delegação de fluxos para a camada de serviço,
- * formatação de respostas JSON e códigos de status em conformidade com o Ipkiss Tester.
+ * Recebe requisições, delega os fluxos financeiros para a camada de serviço
+ * e traduz resultados e exceções para respostas HTTP em conformidade com o Ipkiss Tester.
  */
 @RestController
 public class AccountAssetController {
@@ -50,10 +50,6 @@ public class AccountAssetController {
 
             //withdraw
             if ("withdraw".equals(requestAccountAssetRecord.type())) {
-                if (!accountAssetRepository.existsById(requestAccountAssetRecord.origin())) {
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(0);
-                }
-
                 AccountAsset accountAsset = accountAssetService.withdraw(requestAccountAssetRecord.origin(), requestAccountAssetRecord.amount());
                 return ResponseEntity.status(HttpStatus.CREATED)
                         .body(Map.of("origin", Map.of("id", accountAsset.getAccountId(), "balance", accountAsset.getAmount())));
@@ -61,10 +57,6 @@ public class AccountAssetController {
 
             //transfer
             if ("transfer".equals(requestAccountAssetRecord.type())) {
-                if (!accountAssetRepository.existsById(requestAccountAssetRecord.origin())) {
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(0);
-                }
-
                 var result = accountAssetService.transfer(requestAccountAssetRecord.origin(), requestAccountAssetRecord.destination(), requestAccountAssetRecord.amount());
 
                 return ResponseEntity.status(HttpStatus.CREATED)
@@ -76,7 +68,7 @@ public class AccountAssetController {
 
             return ResponseEntity.badRequest().build();
         }
-        catch (IllegalArgumentException e) {
+        catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(0);
         }
     }

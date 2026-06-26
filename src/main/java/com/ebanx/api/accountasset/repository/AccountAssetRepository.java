@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Repositório em memória para o armazenamento e gerenciamento de ativos de contas.
- * Utiliza estruturas thread-safe para garantir a consistência de estado sob alta concorrência,
+ * Utiliza estrutura thread-safe para proteger o armazenamento em memória contra corrupção estrutural em acessos concorrentes,
  * eliminando dependências relacionais seguindo o princípio YAGNI (You Ain't Gonna Need It).
  */
 @Repository
@@ -22,10 +22,6 @@ public class AccountAssetRepository {
     public AccountAsset save(AccountAsset accountAsset) {
         storeConcurrentHashMap.put(accountAsset.getAccountId(), accountAsset);
         return accountAsset;
-    }
-
-    public boolean existsById(String id) {
-        return storeConcurrentHashMap.containsKey(id);
     }
 
     public void deleteAll() {

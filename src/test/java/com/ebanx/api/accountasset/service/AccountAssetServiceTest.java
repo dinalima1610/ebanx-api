@@ -11,6 +11,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -42,9 +45,10 @@ public class AccountAssetServiceTest {
 
     @BeforeEach
     void setUp() {
-        //antes de cada teste, reatribui os valores
+        //antes de cada teste, reatribui os valores e considera válidos os ids usados nos cenários
         accountOrig = new AccountAsset(accountOrigId, new BigDecimal("30.00"));
         accountDest = new AccountAsset(accountDestId, new BigDecimal("10.00"));
+        when(accountValidatorService.isValidAccountId(anyString())).thenReturn(true);
     }
 
     @Nested
@@ -102,7 +106,7 @@ public class AccountAssetServiceTest {
     class withdraw {
         @Test
         @DisplayName("Deve lançar exceção se o valor (amount) do saque (withdraw) for negativo")
-        void deveLancarExcecaoQuandoWithdrqwForNegativo() {
+        void deveLancarExcecaoQuandoWithdrawForNegativo() {
             BigDecimal amount = new BigDecimal("-10.00");
 
             var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
@@ -138,7 +142,7 @@ public class AccountAssetServiceTest {
         @Test
         @DisplayName("Deve lançar exceção e nunca pode salvar se o saldo (amount) for menor que o saque solicitado")
         void deveBarrarAmountInsuficiente() {
-            //account tem apenas 300
+            //account tem apenas 30.00
             BigDecimal amount = new BigDecimal("600.00");
             when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
 
@@ -166,8 +170,7 @@ public class AccountAssetServiceTest {
             accountAssetService.withdraw(accountOrigId, amount);
 
             //garantindo que a regra de negócio alterou o saldo (amount) do objeto real consistentemente
-            assertEquals(0, amountExpec.compareTo(accountAsset.getAmount()),
-                    "O saldo final da conta deve ser o valor exato do saldo inicial subtraído do saque");
+            assertEquals(0, amountExpec.compareTo(accountAsset.getAmount()), AccountMessages.SALDO_FINAL_APOS_SAQUE);
 
             //garantindo que o estado mutado foi repassado para o método de salvamento do repository
             Mockito.verify(accountAssetRepository).save(accountAsset);
@@ -190,7 +193,7 @@ public class AccountAssetServiceTest {
         @Test
         @DisplayName("Deve lançar exceção e não alterar saldos (amount) se a origem não tiver fundos suficientes")
         void deveBarrarTransferSeOrigemNaoTiverAmount() {
-            BigDecimal amountInvalido = new BigDecimal("500.00"); // Origem só tem 300
+            BigDecimal amountInvalido = new BigDecimal("500.00"); // Origem só tem 30.00
             when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
 
             assertThrows(IllegalStateException.class, () -> accountAssetService.transfer(accountOrigId, accountDestId, amountInvalido));
@@ -216,9 +219,98 @@ public class AccountAssetServiceTest {
             //10 + 20 = 30
             assertEquals(0, new BigDecimal("30").compareTo(accountAssetResult.get(1).getAmount()));
 
-            //garante a atomicidade da transaction
+            //verifica que as duas contas são salvas no fluxo de transferência bem-sucedida
             verify(accountAssetRepository, times(1)).save(accountOrig);
             verify(accountAssetRepository, times(1)).save(accountDest);
         }
+    }
+
+    @Test
+    @DisplayName("Deve executar os testes anteriores com valores iniciados uma única vez")
+    void deveExecutarTodosOsTestesAnterioresComValoresIniciadosUmaUnicaVez() {
+        AccountAsset accountOrigUnico    = new AccountAsset(accountOrigId, new BigDecimal("30.00"));
+        AccountAsset accountDestUnico    = new AccountAsset(accountDestId, new BigDecimal("10.00"));
+        AccountAsset accountAssetPersist = new AccountAsset(accountOrigId, new BigDecimal("15.00"));
+
+        //depósito
+        var depositNegativoException = assertThrows(IllegalArgumentException.class,
+                () -> accountAssetService.deposit(accountOrigId, new BigDecimal("-5.00")));
+        assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, depositNegativoException.getMessage());
+
+        var depositZeroException = assertThrows(IllegalArgumentException.class,
+                () -> accountAssetService.deposit(accountOrigId, BigDecimal.ZERO));
+        assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, depositZeroException.getMessage());
+
+        var depositZeroOuNegativoException = assertThrows(IllegalArgumentException.class,
+                () -> accountAssetService.deposit(accountOrigId, new BigDecimal("-1.00")));
+        assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, depositZeroOuNegativoException.getMessage());
+
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
+        when(accountAssetRepository.save(any(AccountAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AccountAsset depositResult = accountAssetService.deposit(accountOrigId, new BigDecimal("5.00"));
+
+        assertNotNull(depositResult);
+        assertEquals(new BigDecimal("35.00"), depositResult.getAmount());
+        verify(accountAssetRepository, times(1)).save(accountOrigUnico);
+        clearInvocations(accountAssetRepository);
+
+        //saque
+        var withdrawNegativoException = assertThrows(IllegalArgumentException.class,
+                () -> accountAssetService.withdraw(accountOrigId, new BigDecimal("-10.00")));
+        assertEquals(AccountMessages.VALOR_SAQUE_POSITIVO, withdrawNegativoException.getMessage());
+
+        var withdrawZeroException = assertThrows(IllegalArgumentException.class,
+                () -> accountAssetService.withdraw(accountOrigId, BigDecimal.ZERO));
+        assertEquals(AccountMessages.VALOR_SAQUE_POSITIVO, withdrawZeroException.getMessage());
+
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
+
+        AccountAsset withdrawResult = accountAssetService.withdraw(accountOrigId, new BigDecimal("5.00"));
+
+        assertNotNull(withdrawResult);
+        assertEquals(new BigDecimal("30.00"), withdrawResult.getAmount());
+        verify(accountAssetRepository, times(1)).save(accountOrigUnico);
+        clearInvocations(accountAssetRepository);
+
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
+
+        var balanceInsuficienteException = assertThrows(IllegalStateException.class,
+                () -> accountAssetService.withdraw(accountOrigId, new BigDecimal("600.00")));
+
+        assertEquals(AccountMessages.SALDO_INSUFICIENTE, balanceInsuficienteException.getMessage());
+        verify(accountAssetRepository, never()).save(any());
+        clearInvocations(accountAssetRepository);
+
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountAssetPersist));
+
+        accountAssetService.withdraw(accountOrigId, new BigDecimal("10.00"));
+
+        assertEquals(0, new BigDecimal("5.00").compareTo(accountAssetPersist.getAmount()), AccountMessages.SALDO_FINAL_APOS_SAQUE);
+        verify(accountAssetRepository).save(accountAssetPersist);
+        clearInvocations(accountAssetRepository);
+
+        //transferência
+        var mesmaAccountException = assertThrows(IllegalArgumentException.class,
+                () -> accountAssetService.transfer(accountOrigId, accountOrigId, new BigDecimal("10.00")));
+        assertEquals(AccountMessages.ORIGEM_IGUAL_DESTINO, mesmaAccountException.getMessage());
+
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
+
+        assertThrows(IllegalStateException.class,
+                () -> accountAssetService.transfer(accountOrigId, accountDestId, new BigDecimal("500.00")));
+        verify(accountAssetRepository, never()).save(any());
+        clearInvocations(accountAssetRepository);
+
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
+        when(accountAssetRepository.findById(accountDestId)).thenReturn(Optional.of(accountDestUnico));
+
+        List<AccountAsset> transferResult = accountAssetService.transfer(accountOrigId, accountDestId, new BigDecimal("20"));
+
+        assertNotNull(transferResult);
+        assertEquals(0, new BigDecimal("10").compareTo(transferResult.get(0).getAmount()));
+        assertEquals(0, new BigDecimal("30").compareTo(transferResult.get(1).getAmount()));
+        verify(accountAssetRepository, times(1)).save(accountOrigUnico);
+        verify(accountAssetRepository, times(1)).save(accountDestUnico);
     }
 }
