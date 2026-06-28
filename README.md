@@ -7,8 +7,10 @@ Esta aplicação foi desenvolvida seguindo boas práticas de engenharia de softw
 ## O que foi implementado nesta etapa
 - **Separação de Responsabilidades:** Lógica de negócio isolada na camada Service, desacoplada de regras de transporte HTTP.
 - **Persistência Eficiente em Memória:** Uso de estruturas thread-safe concorrentes (`ConcurrentHashMap`), eliminando a complexidade desnecessária de bancos de dados relacionais, atendendo estritamente ao critério de que durabilidade não era um requisito.
-- **Validações de Entrada:** IDs de conta são validados no `AccountValidatorService`; regras financeiras como valores positivos e saldo suficiente ficam no `AccountAssetService`; o controller traduz exceções para respostas HTTP.
+- **Validações de Entrada:** IDs de conta são validados no `AccountValidatorService`; regras financeiras como valores positivos e saldo suficiente ficam no `AccountAssetService`.
+- **Tratamento Centralizado de Erros:** Violações previstas lançam `BusinessException`, identificada por `ErrorCode`, e são traduzidas pelo `ApiExceptionHandler` para o contrato HTTP do Ipkiss Tester.
 - **Testes Multicamadas:** Estratégia de testes abrangente, cobrindo validações de domínio, simulação de regras de negócio e testes integrados ponta a ponta (E2E) que reproduzem o roteiro do testador e cobrem cenários adicionais de robustez.
+- **Testes Independentes de Ordem:** Uma suíte E2E complementar reseta o estado antes de cada cenário e valida sequências diferentes da execução oficial do Ipkiss, incluindo falhas sem mutação, resets intermediários e operações decimais encadeadas.
 
 
 ## ️ Como rodar o projeto e os testes
@@ -68,6 +70,8 @@ O ngrok gerará um endereço público seguro e temporário (ex: `https://ngrok-f
 ## Documentação da API & Conformidade Ipkiss Tester
 
 Todos os contratos HTTP foram adaptados para responder na raiz do servidor, seguindo estritamente as assinaturas, payloads e códigos de status (`200`, `201`, `404`) exigidos pelo testador automatizado do EBANX Ninja.
+
+As falhas de negócio são tratadas de forma centralizada e mantêm a resposta legada `404 Not Found` com corpo `0`. Requisições sintaticamente inválidas, como JSON malformado, parâmetro obrigatório ausente ou tipo de evento desconhecido, preservam a resposta `400 Bad Request`.
 
 ### 1. Reset de Estado
 Limpa integralmente o repositório em memória para execução de novas baterias de testes.
@@ -173,13 +177,16 @@ Considerando uma conta existente com saldo menor que o valor solicitado, a API r
     - **Testes Integrados E2E:** Usando `MockMvc` com persistência em memória para reproduzir integralmente e sequencialmente as etapas estipuladas na especificação do `Ipkiss Tester`, além de cobrir cenários adicionais de robustez como saldo insuficiente e campos ausentes.
 
 
+6. **Erros de Negócio:** Uma única `BusinessException` representa falhas previstas. O `ErrorCode` identifica a causa internamente sem alterar o corpo exigido pelo Ipkiss, e o `ApiExceptionHandler` centraliza sua conversão para HTTP.
+
 ## Status do Projeto e Próximos Passos (Roadmap)
 
 Este repositório segue uma estratégia de desenvolvimento incremental (boas práticas de engenharia de software).
 
 - **[X] Etapa 1:** Estabilização do core de negócios (módulo de Consulta de Saldo, Depósitos, Saques, Transferências em `AccountAssetService`), persistência em banco de dados MySQL 8 com população automatizada via `data.sql` e testes unitários de comportamento real.
 - **[X] Etapa 2:** Refatoração dos contratos da camada HTTP para alinhamento estrito com a especificação de testes da plataforma (rotas `/event`, `/balance` e `/reset`) e remoção de persistência pesada. Blindagem do projeto com testes de integração *Edge Cases* e estruturação de testes End-to-End (E2E) locais usando MockMvc.
-- **[X] Etapa 3 (Atual):** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok com 100% de sucesso na plataforma `Ipkiss Tester` via Ngrok. Criação da documentação formal de arquitetura (`ARCHITECTURE.md`) detalhando as decisões de design, padrões de concorrência e o System Design Document (SDD).
+- **[X] Etapa 3:** Homologação externa na plataforma de testes utilizando exposição segura de túnel via Ngrok com 100% de sucesso na plataforma `Ipkiss Tester` via Ngrok. Criação da documentação formal de arquitetura (`ARCHITECTURE.md`) detalhando as decisões de design, padrões de concorrência e o System Design Document (SDD).
+- **[X] Etapa 4:** Centralização do tratamento de exceções de negócio com `@RestControllerAdvice`, preservação do contrato do Ipkiss e padronização do fluxo `Controller → Service → Repository` para todas as operações.
 
 ---
 

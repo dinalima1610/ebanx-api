@@ -29,8 +29,9 @@ O sistema foi desenhado seguindo o padrão de **Camadas Desacopladas**, garantin
 
 ```
 ### Justificativa de Componentes:
-- **`AccountAssetController`**: Responsável por receber o JSON, delegar as operações ao serviço e traduzir exceções de domínio em códigos de status HTTP (`200`, `201`, `404`).
-- **`AccountAssetService`**: Centraliza as regras financeiras. Não possui conhecimento sobre requisições HTTP, cabeçalhos ou URIs, tornando-o testável isoladamente de forma pura.
+- **`AccountAssetController`**: Responsável por receber requisições, delegar todas as operações ao serviço e montar respostas de sucesso. Não captura exceções de negócio nem acessa diretamente o repositório.
+- **`ApiExceptionHandler`**: Componente global baseado em `@RestControllerAdvice` que traduz `BusinessException` para o contrato do Ipkiss (`404` com corpo `0`).
+- **`AccountAssetService`**: Centraliza as regras financeiras e o acesso ao repositório para consulta de saldo, depósito, saque, transferência e reset. Não possui conhecimento sobre requisições HTTP, cabeçalhos ou URIs.
 - **`AccountValidatorService`**: Centraliza a validação sintática dos identificadores de conta, como presença, ausência de branco e formato numérico esperado.
 - **`AccountAssetRepository`**: Abstrai o mecanismo de armazenamento sob uma interface limpa.
 
@@ -61,7 +62,11 @@ A operação de transferência envolve duas mutações de estado que precisam oc
 ### Tratamento de Mensagens
 Em projetos corporativos reais de grande porte, a prática recomendada envolve externalizar strings de erro em arquivos de propriedades externos (`messages.properties`) acionados pelo componente `MessageSource` no ecossistema Spring, viabilizando cenários de internacionalização.
 No entanto, considerando o contexto específico e o peso atribuído à clareza de entrega, introduzir essa infraestrutura adicionaria uma complexidade desnecessária ao escopo atual do projeto.
-Para resolver o acoplamento de textos brutos (*magic strings*) e reaproveitar as mensagens tanto nas validações de negócio quanto nas asserções da suíte de testes (princípio **DRY** - *Don't Repeat Yourself*), optou-se pelo design mais enxuto: a centralização em uma classe utilitária final de constantes (`AccountMessages`). Isso mantém o código limpo, flexível e imune a erros de digitação, sem inflar a arquitetura com recursos não solicitados.
+Para resolver o acoplamento de textos brutos (*magic strings*) e reaproveitar as mensagens tanto nas validações de negócio quanto nas asserções da suíte de testes (princípio **DRY** - *Don't Repeat Yourself*), optou-se pela centralização em uma classe utilitária final de constantes (`AccountMessages`).
+
+As falhas previstas são representadas por uma única `BusinessException`. Cada ocorrência recebe um `ErrorCode` estável, permitindo identificar programaticamente a causa sem criar uma classe para cada possível erro e sem depender do texto da mensagem. O código é interno e não modifica a resposta exigida pelo Ipkiss.
+
+O `ApiExceptionHandler` trata exclusivamente `BusinessException`. Exceções de parsing e validações nativas do protocolo continuam sob o comportamento padrão do Spring, preservando `400 Bad Request` para JSON malformado e parâmetros obrigatórios ausentes. Não há captura genérica de `Exception`, evitando ocultar falhas inesperadas.
 
 ---
 
@@ -72,6 +77,8 @@ A qualidade da entrega foi validada através de testes de cobertura de código, 
 1. **Testes de Unidade de Domínio (`AccountAssetTest`)**: Validam a consistência das propriedades básicas e mutações simples do objeto de negócio.
 2. **Testes de Serviço (`AccountAssetServiceTest`)**: Utilizam mocks controlados do Mockito para isolar a regra de negócio do repositório e forçar cenários excepcionais críticos (*Edge Cases*), como transferências para si mesmo e saques além do limite permitido.
 3. **Testes de Integração End-to-End (`AccountAssetE2ETest`)**: Executam chamadas HTTP completas via `MockMvc` consumindo o repositório em memória real. Eles reproduzem a ordem cronológica das baterias de teste executadas pelo script externo do robô de testes e incluem cenários adicionais de robustez, como saldo insuficiente e campos ausentes.
+4. **Testes de Caracterização HTTP**: Fixam explicitamente as respostas atuais para JSON malformado, tipo de evento desconhecido e ausência de `account_id`, impedindo mudanças acidentais entre `400` e `404`.
+5. **Testes Complementares de Robustez (`AccountAssetRobustnessE2ETest`)**: Reinicializam o estado antes de cada cenário para eliminar dependência de ordem. Cobrem transferências para contas existentes, preservação de saldo após falhas, reset intermediário, precisão decimal, IDs e valores inválidos, payloads inválidos e recuperação após uma operação recusada.
 
 ---
 
@@ -103,3 +110,4 @@ Os endpoints foram intencionalmente expostos na raiz do servidor (`/balance`, `/
 - **Códigos de Resposta**:
   - `201 Created`: Operação realizada com sucesso. Retorna o estado modificado da conta.
   - `404 Not Found`: Conta de origem inexistente, identificador inválido, saldo insuficiente ou payload financeiro inválido. Retorna `0`.
+  - `400 Bad Request`: JSON malformado ou tipo de evento desconhecido.

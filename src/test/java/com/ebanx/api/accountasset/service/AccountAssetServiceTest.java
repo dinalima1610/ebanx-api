@@ -2,6 +2,8 @@ package com.ebanx.api.accountasset.service;
 
 import com.ebanx.api.accountasset.domain.AccountAsset;
 import com.ebanx.api.accountasset.repository.AccountAssetRepository;
+import com.ebanx.api.error.BusinessException;
+import com.ebanx.api.error.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,7 +50,38 @@ public class AccountAssetServiceTest {
         //antes de cada teste, reatribui os valores e considera válidos os ids usados nos cenários
         accountOrig = new AccountAsset(accountOrigId, new BigDecimal("30.00"));
         accountDest = new AccountAsset(accountDestId, new BigDecimal("10.00"));
-        when(accountValidatorService.isValidAccountId(anyString())).thenReturn(true);
+        lenient().when(accountValidatorService.isValidAccountId(anyString())).thenReturn(true);
+    }
+
+    @Test
+    @DisplayName("Deve obter o saldo de uma conta (account) existente")
+    void deveObterBalanceDeAccountExistente() {
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
+
+        AccountAsset result = accountAssetService.getBalance(accountOrigId);
+
+        assertSame(accountOrig, result);
+    }
+
+    @Test
+    @DisplayName("Deve identificar conta (account) inexistente ao obter saldo")
+    void deveIdentificarAccountInexistenteAoObterBalance() {
+        when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> accountAssetService.getBalance(accountOrigId));
+
+        assertEquals(ErrorCode.ACCOUNT_NOT_FOUND, exception.getCode());
+        assertEquals(AccountMessages.CONTA_NAO_ENCONTRADA_OU_SEM_SALDO_INICIAL, exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("Deve reiniciar o repositório")
+    void deveResetarRepository() {
+        accountAssetService.reset();
+
+        verify(accountAssetRepository).deleteAll();
     }
 
     @Nested
@@ -59,8 +92,9 @@ public class AccountAssetServiceTest {
         void deveLancarExcecaoQuandoAmountForNegativo() {
             BigDecimal amount = new BigDecimal("-5.00");
 
-            var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.deposit(accountOrigId, amount));
+            var exception = assertThrows(BusinessException.class, () -> accountAssetService.deposit(accountOrigId, amount));
 
+            assertEquals(ErrorCode.INVALID_AMOUNT, exception.getCode());
             assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, exception.getMessage());
         }
 
@@ -69,7 +103,7 @@ public class AccountAssetServiceTest {
         void deveLancarExcecaoQuandoAmountForZero() {
             BigDecimal amount = BigDecimal.ZERO;
 
-            var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.deposit(accountOrigId, amount));
+            var exception = assertThrows(BusinessException.class, () -> accountAssetService.deposit(accountOrigId, amount));
 
             assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, exception.getMessage());
         }
@@ -79,7 +113,7 @@ public class AccountAssetServiceTest {
         void naoDevePermitirDepositComValorZeroOuNegativo() {
             BigDecimal amount = new BigDecimal("-1.00");
 
-            var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.deposit(accountOrigId, amount));
+            var exception = assertThrows(BusinessException.class, () -> accountAssetService.deposit(accountOrigId, amount));
 
             assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, exception.getMessage());
         }
@@ -109,7 +143,7 @@ public class AccountAssetServiceTest {
         void deveLancarExcecaoQuandoWithdrawForNegativo() {
             BigDecimal amount = new BigDecimal("-10.00");
 
-            var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
+            var exception = assertThrows(BusinessException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
 
             assertEquals(AccountMessages.VALOR_SAQUE_POSITIVO, exception.getMessage());
         }
@@ -119,7 +153,7 @@ public class AccountAssetServiceTest {
         void deveLancarExcecaoQuandoWithdrawForZero() {
             BigDecimal amount = BigDecimal.ZERO;
 
-            var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
+            var exception = assertThrows(BusinessException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
 
             assertEquals(AccountMessages.VALOR_SAQUE_POSITIVO, exception.getMessage());
         }
@@ -147,8 +181,9 @@ public class AccountAssetServiceTest {
             when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
 
             //valida o saldo e lança a exceção
-            var illegalStateException = assertThrows(IllegalStateException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
+            var illegalStateException = assertThrows(BusinessException.class, () -> accountAssetService.withdraw(accountOrigId, amount));
 
+            assertEquals(ErrorCode.INSUFFICIENT_BALANCE, illegalStateException.getCode());
             assertEquals(AccountMessages.SALDO_INSUFICIENTE, illegalStateException.getMessage());
 
             //garante que nada foi alterado/salvo
@@ -185,8 +220,9 @@ public class AccountAssetServiceTest {
         void deveBarrarTransferParaMesmaConta() {
             BigDecimal amount = new BigDecimal("10.00");
 
-            var exception = assertThrows(IllegalArgumentException.class, () -> accountAssetService.transfer(accountOrigId, accountOrigId, amount));
+            var exception = assertThrows(BusinessException.class, () -> accountAssetService.transfer(accountOrigId, accountOrigId, amount));
 
+            assertEquals(ErrorCode.SAME_ACCOUNT_TRANSFER, exception.getCode());
             assertEquals(AccountMessages.ORIGEM_IGUAL_DESTINO, exception.getMessage());
         }
 
@@ -196,7 +232,7 @@ public class AccountAssetServiceTest {
             BigDecimal amountInvalido = new BigDecimal("500.00"); // Origem só tem 30.00
             when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrig));
 
-            assertThrows(IllegalStateException.class, () -> accountAssetService.transfer(accountOrigId, accountDestId, amountInvalido));
+            assertThrows(BusinessException.class, () -> accountAssetService.transfer(accountOrigId, accountDestId, amountInvalido));
 
             //garante que o método save NUNCA foi chamado para nenhuma das contas, mantendo a consistência
             verify(accountAssetRepository, never()).save(any());
@@ -233,15 +269,15 @@ public class AccountAssetServiceTest {
         AccountAsset accountAssetPersist = new AccountAsset(accountOrigId, new BigDecimal("15.00"));
 
         //depósito
-        var depositNegativoException = assertThrows(IllegalArgumentException.class,
+        var depositNegativoException = assertThrows(BusinessException.class,
                 () -> accountAssetService.deposit(accountOrigId, new BigDecimal("-5.00")));
         assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, depositNegativoException.getMessage());
 
-        var depositZeroException = assertThrows(IllegalArgumentException.class,
+        var depositZeroException = assertThrows(BusinessException.class,
                 () -> accountAssetService.deposit(accountOrigId, BigDecimal.ZERO));
         assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, depositZeroException.getMessage());
 
-        var depositZeroOuNegativoException = assertThrows(IllegalArgumentException.class,
+        var depositZeroOuNegativoException = assertThrows(BusinessException.class,
                 () -> accountAssetService.deposit(accountOrigId, new BigDecimal("-1.00")));
         assertEquals(AccountMessages.VALOR_DEPOSITO_POSITIVO, depositZeroOuNegativoException.getMessage());
 
@@ -256,11 +292,11 @@ public class AccountAssetServiceTest {
         clearInvocations(accountAssetRepository);
 
         //saque
-        var withdrawNegativoException = assertThrows(IllegalArgumentException.class,
+        var withdrawNegativoException = assertThrows(BusinessException.class,
                 () -> accountAssetService.withdraw(accountOrigId, new BigDecimal("-10.00")));
         assertEquals(AccountMessages.VALOR_SAQUE_POSITIVO, withdrawNegativoException.getMessage());
 
-        var withdrawZeroException = assertThrows(IllegalArgumentException.class,
+        var withdrawZeroException = assertThrows(BusinessException.class,
                 () -> accountAssetService.withdraw(accountOrigId, BigDecimal.ZERO));
         assertEquals(AccountMessages.VALOR_SAQUE_POSITIVO, withdrawZeroException.getMessage());
 
@@ -275,7 +311,7 @@ public class AccountAssetServiceTest {
 
         when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
 
-        var balanceInsuficienteException = assertThrows(IllegalStateException.class,
+        var balanceInsuficienteException = assertThrows(BusinessException.class,
                 () -> accountAssetService.withdraw(accountOrigId, new BigDecimal("600.00")));
 
         assertEquals(AccountMessages.SALDO_INSUFICIENTE, balanceInsuficienteException.getMessage());
@@ -291,13 +327,13 @@ public class AccountAssetServiceTest {
         clearInvocations(accountAssetRepository);
 
         //transferência
-        var mesmaAccountException = assertThrows(IllegalArgumentException.class,
+        var mesmaAccountException = assertThrows(BusinessException.class,
                 () -> accountAssetService.transfer(accountOrigId, accountOrigId, new BigDecimal("10.00")));
         assertEquals(AccountMessages.ORIGEM_IGUAL_DESTINO, mesmaAccountException.getMessage());
 
         when(accountAssetRepository.findById(accountOrigId)).thenReturn(Optional.of(accountOrigUnico));
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(BusinessException.class,
                 () -> accountAssetService.transfer(accountOrigId, accountDestId, new BigDecimal("500.00")));
         verify(accountAssetRepository, never()).save(any());
         clearInvocations(accountAssetRepository);

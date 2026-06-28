@@ -212,4 +212,34 @@ public class AccountAssetE2ETest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("0"));
     }
+
+    @Test
+    @DisplayName("Evento com JSON malformado deve retornar 400")
+    @Order(16)
+    void eventoComJsonMalformadoDeveRetornarBadRequest() throws Exception {
+        mockMvc.perform(post("/event")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"deposit\""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Evento com tipo desconhecido deve retornar 400")
+    @Order(17)
+    void eventoComTipoDesconhecidoDeveRetornarBadRequest() throws Exception {
+        String payload = "{\"type\":\"unknown\", \"destination\":\"500\", \"amount\":10}";
+
+        mockMvc.perform(post("/event")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Consulta sem account_id deve retornar 400")
+    @Order(18)
+    void balanceSemAccountIdDeveRetornarBadRequest() throws Exception {
+        mockMvc.perform(get("/balance"))
+                .andExpect(status().isBadRequest());
+    }
 }
