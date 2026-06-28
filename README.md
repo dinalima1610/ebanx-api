@@ -187,5 +187,4 @@ Este repositório segue uma estratégia de desenvolvimento incremental (boas pr�
 
 Desenvolvido por **Diná Andrade Lima**
 - **LinkedIn:** https://www.linkedin.com/in/diná-andrade-lima/
-- **E-mail:** dinalima.dal@gmail.com
 - **GitHub:** [@dinalima1610](https://github.com/dinalima1610)
