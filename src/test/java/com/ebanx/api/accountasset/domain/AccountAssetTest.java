@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Testes Unitários de Domínio para a entidade AccountAsset.
  * Valida de forma isolada e veloz a consistência das propriedades básicas do modelo,
- * a integridade dos seus construtores e o comportamento esperado de mutação de estado via métodos getters e setters.
+ * a integridade do construtor e a imutabilidade do saldo.
  */
 public class AccountAssetTest {
     @Test
@@ -29,13 +29,14 @@ public class AccountAssetTest {
     }
 
     @Test
-    @DisplayName("Deve permitir alterar o saldo (amount) através do método setter e recuperar o novo saldo pelo método getter")
-    void deveAlterarAmountComSetter() {
+    @DisplayName("Deve representar uma alteração de saldo em uma nova instância imutável")
+    void deveRepresentarNovoAmountEmNovaInstancia() {
         AccountAsset accountAsset = new AccountAsset("200", BigDecimal.ZERO);
         BigDecimal newAmount = new BigDecimal("5");
 
-        accountAsset.setAmount(newAmount);
+        AccountAsset updatedAccount = new AccountAsset(accountAsset.getAccountId(), newAmount);
 
-        assertEquals(newAmount, accountAsset.getAmount());
+        assertEquals(BigDecimal.ZERO, accountAsset.getAmount());
+        assertEquals(newAmount, updatedAccount.getAmount());
     }
 }

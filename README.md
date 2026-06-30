@@ -6,10 +6,11 @@ Esta aplicação foi desenvolvida seguindo boas práticas de engenharia de softw
 
 ## O que foi implementado nesta etapa
 - **Separação de Responsabilidades:** Lógica de negócio isolada na camada Service, desacoplada de regras de transporte HTTP.
-- **Persistência Eficiente em Memória:** Uso de estruturas thread-safe concorrentes (`ConcurrentHashMap`), eliminando a complexidade desnecessária de bancos de dados relacionais, atendendo estritamente ao critério de que durabilidade não era um requisito.
+- **Armazenamento Eficiente em Memória:** Uso de `ConcurrentHashMap` com sincronização local no serviço, preservando a atomicidade concorrente dentro de uma única JVM sem introduzir durabilidade não solicitada.
+- **Estado Imutável:** Cada alteração financeira produz uma nova representação da conta, evitando mutações fora da operação sincronizada.
 - **Validações de Entrada:** IDs de conta são validados no `AccountValidatorService`; regras financeiras como valores positivos e saldo suficiente ficam no `AccountAssetService`.
 - **Tratamento Centralizado de Erros:** Violações previstas lançam `BusinessException`, identificada por `ErrorCode`, e são traduzidas pelo `ApiExceptionHandler` para o contrato HTTP do Ipkiss Tester.
-- **Testes Multicamadas:** Estratégia de testes abrangente, cobrindo validações de domínio, simulação de regras de negócio e testes integrados ponta a ponta (E2E) que reproduzem o roteiro do testador e cobrem cenários adicionais de robustez.
+- **Testes Multicamadas:** Estratégia de testes abrangente, cobrindo domínio, regras de negócio, fluxos integrados ponta a ponta (E2E), cenários de robustez e invariantes sob operações concorrentes.
 - **Testes Independentes de Ordem:** Uma suíte E2E complementar reseta o estado antes de cada cenário e valida sequências diferentes da execução oficial do Ipkiss, incluindo falhas sem mutação, resets intermediários e operações decimais encadeadas.
 
 
@@ -166,11 +167,17 @@ Considerando uma conta existente com saldo menor que o valor solicitado, a API r
 
 ---
 
+## Observabilidade e Escopo Arquitetural
+
+O projeto mantém o logging técnico padrão fornecido pelo Spring Boot, utilizado para eventos como inicialização da aplicação e determinadas falhas tratadas pelo Spring MVC. Logs estruturados específicos da aplicação, correlação por request ID e trilhas de auditoria não fazem parte do escopo atual.
+
+Essa decisão não decorre da ausência de banco de dados. Persistência e observabilidade são responsabilidades independentes. As práticas adotadas, as restrições impostas pelo contrato do *Ipkiss Tester* e os critérios para uma eventual evolução estão detalhados no [`ARCHITECTURE.md`](ARCHITECTURE.md#6-boas-práticas-restrições-do-contrato-e-escopo-do-projeto).
+
 ## Principais Decisões Técnicas e de Arquitetura & Design de Rotas
 1. **Tipos e Valores:** Uso exclusivo de `BigDecimal` para todas as operações financeiras em toda a cadeia de dados (Service, Controller e DTO), mitigando problemas clássicos de imprecisão de ponto flutuante (`double`/`float`).
 2. **Design de Rotas na Raiz:** Em cenários corporativos reais, os endpoints seriam obrigatoriamente isolados sob contextos de negócio e versionados (ex: `/api/v1/balance`). Optou-se por expor os recursos `/event`, `/balance` e `/reset` diretamente na raiz do servidor estritamente para garantir compatibilidade com as regras de parsing e concatenação rígidas do script automatizado do `Ipkiss Tester`.
 3. **Flexibilidade do Contrato:** O desacoplamento total entre a lógica de domínio (`AccountAssetService`) e os controladores de transporte HTTP garante que, caso uma nova versão da API necessite de padrões corporativos como `/v2/`, a refatoração envolverá apenas anotações de rota, sem qualquer impacto nas regras financeiras de estado.
-4. **Armazenamento de Dados:** Substituição de infraestruturas relacionais pesadas por uma estratégia baseada em `ConcurrentHashMap`. Isso garante consistência estrita de estado, já que persistência durável não era um requisito.
+4. **Armazenamento de Dados:** Uso de `ConcurrentHashMap` como armazenamento em memória, complementado por sincronização local no serviço e objetos de domínio imutáveis. A solução garante atomicidade concorrente dentro de uma única JVM, sem introduzir persistência durável. Não representa armazenamento distribuído nem substitui transações ACID.
 5. **Abordagem Abrangente de Testes:** A aplicação conta com três níveis distintos de testes:
     - **Testes de Domínio:** Focados em validar o isolamento e corretude do estado das entidades.
     - **Testes de Serviço (Edge Cases):** Mockados com o Mockito para forçar e tratar cenários excepcionais como saques e transferências com saldo insuficiente ou transferências para uma mesma conta.

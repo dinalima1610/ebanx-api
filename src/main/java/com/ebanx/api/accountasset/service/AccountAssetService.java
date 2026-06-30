@@ -24,18 +24,18 @@ public class AccountAssetService {
         this.accountValidator       = accountValidator;
     }
 
-    public AccountAsset getBalance(String accountId) {
+    public synchronized AccountAsset getBalance(String accountId) {
         return accountAssetRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.ACCOUNT_NOT_FOUND,
                         AccountMessages.CONTA_NAO_ENCONTRADA_OU_SEM_SALDO_INICIAL));
     }
 
-    public void reset() {
+    public synchronized void reset() {
         accountAssetRepository.deleteAll();
     }
 
-    public AccountAsset deposit(String accountId, BigDecimal amount) {
+    public synchronized AccountAsset deposit(String accountId, BigDecimal amount) {
         if (!accountValidator.isValidAccountId(accountId)) {
             throw new BusinessException(ErrorCode.INVALID_ACCOUNT, AccountMessages.CONTA_INVALIDA);
         }
@@ -45,16 +45,16 @@ public class AccountAssetService {
         }
 
         //se não achar account (conta), instancia uma nova
-        AccountAsset accountAsset = accountAssetRepository.findById(accountId)
-                .orElseGet(() -> new AccountAsset(accountId, BigDecimal.ZERO));
+        BigDecimal currentAmount = accountAssetRepository.findById(accountId)
+                .map(AccountAsset::getAmount)
+                .orElse(BigDecimal.ZERO);
 
         //adiciona ammount (saldo)
-        accountAsset.setAmount(accountAsset.getAmount().add(amount));
-
-        return accountAssetRepository.save(accountAsset);
+        AccountAsset updatedAccount = new AccountAsset(accountId, currentAmount.add(amount));
+        return accountAssetRepository.save(updatedAccount);
     }
 
-    public AccountAsset withdraw(String accountId, BigDecimal amount) {
+    public synchronized AccountAsset withdraw(String accountId, BigDecimal amount) {
         //verifica se é conta (account) válida
         if (!accountValidator.isValidAccountId(accountId)) {
             throw new BusinessException(ErrorCode.INVALID_ACCOUNT, AccountMessages.CONTA_INVALIDA);
@@ -76,14 +76,16 @@ public class AccountAssetService {
             throw new BusinessException(ErrorCode.INSUFFICIENT_BALANCE, AccountMessages.SALDO_INSUFICIENTE);
         }
 
-        //subtrai amount (saldo)
-        accountAsset.setAmount(accountAsset.getAmount().subtract(amount));
+        AccountAsset updatedAccount = new AccountAsset(
+                accountId,
+                //subtrai amount (saldo)
+                accountAsset.getAmount().subtract(amount));
 
-        return accountAssetRepository.save(accountAsset);
+        return accountAssetRepository.save(updatedAccount);
     }
 
-    public List<AccountAsset> transfer(String origId, String destId, BigDecimal amount) {
-        //valida os ids antes de qualquer mutação para evitar débito parcial na transferência
+    public synchronized List<AccountAsset> transfer(String origId, String destId, BigDecimal amount) {
+        //valida toda a operação antes de qualquer mutação
         if (!accountValidator.isValidAccountId(origId) || !accountValidator.isValidAccountId(destId)) {
             throw new BusinessException(ErrorCode.INVALID_ACCOUNT, AccountMessages.CONTA_NAO_ENCONTRADA);
         }
@@ -93,12 +95,35 @@ public class AccountAssetService {
             throw new BusinessException(ErrorCode.SAME_ACCOUNT_TRANSFER, AccountMessages.ORIGEM_IGUAL_DESTINO);
         }
 
-        //o método withdraw valida amount (saldo) insuficiente e valor positivo para a origem
-        AccountAsset origAccount = this.withdraw(origId, amount);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_AMOUNT, AccountMessages.VALOR_SAQUE_POSITIVO);
+        }
 
-        //o método deposit trata a criação dinâmica da account (conta) de destino caso ela não exista
-        AccountAsset destAccount = this.deposit(destId, amount);
+        //acount origem
+        AccountAsset origAccount = accountAssetRepository.findById(origId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.ACCOUNT_NOT_FOUND,
+                        AccountMessages.CONTA_NAO_ENCONTRADA));
 
-        return List.of(origAccount, destAccount);
+        if (origAccount.getAmount().compareTo(amount) < 0) {
+            throw new BusinessException(ErrorCode.INSUFFICIENT_BALANCE, AccountMessages.SALDO_INSUFICIENTE);
+        }
+
+        //acount destino
+        BigDecimal destinationAmount = accountAssetRepository.findById(destId)
+                .map(AccountAsset::getAmount)
+                .orElse(BigDecimal.ZERO);
+        
+        AccountAsset updatedOrigin = new AccountAsset(
+                origId,
+                origAccount.getAmount().subtract(amount));
+        AccountAsset updatedDestination = new AccountAsset(
+                destId,
+                destinationAmount.add(amount));
+
+        AccountAsset savedOrigin = accountAssetRepository.save(updatedOrigin);
+        AccountAsset savedDestination = accountAssetRepository.save(updatedDestination);
+
+        return List.of(savedOrigin, savedDestination);
     }
 }

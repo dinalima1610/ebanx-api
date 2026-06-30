@@ -1,22 +1,14 @@
 package com.ebanx.api.accountasset.domain;
 
 import java.math.BigDecimal;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.Value;
 
 /**
  * Classe de domínio que representa o estado financeiro de uma conta (account).
- * Gerenciada em memória de forma simplificada atendendo aos critérios da especificação.
+ * Imutável para impedir alterações de saldo fora da operação coordenada pelo serviço.
  */
-@Data
-//para o Lombok gerar getters e setters, hashCode e equals
-@NoArgsConstructor
+@Value
 public class AccountAsset {
-    private String accountId;
-    private BigDecimal amount = BigDecimal.ZERO;
-
-    public AccountAsset(String accountId, BigDecimal amount) {
-        this.accountId = accountId;
-        this.amount = amount;
-    }
+    String accountId;
+    BigDecimal amount;
 }
